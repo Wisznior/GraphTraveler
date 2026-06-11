@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 AIRPORTS_URL = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat"
-ROUTES_URL   = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/routes.dat"
+ROUTES_URL= "https://raw.githubusercontent.com/jpatokal/openflights/master/data/routes.dat"
 
 AIRPORT_COLS = [
     "id", "name", "city", "country", "code", "icao",
@@ -44,8 +44,8 @@ DEPARTURES = ["06:10", "08:25", "10:40", "13:15", "15:50", "18:05", "20:30"]
 
 
 def get_driver():
-    uri      = os.getenv("NEO4J_URI",      "bolt://localhost:7687")
-    user     = os.getenv("NEO4J_USER",     "neo4j")
+    uri      = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    user     = os.getenv("NEO4J_USER", "neo4j")
     password = os.getenv("NEO4J_PASSWORD", "graphtraveler123")
     return GraphDatabase.driver(uri, auth=(user, password))
 
@@ -53,7 +53,7 @@ def get_driver():
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi    = math.radians(lat2 - lat1)
+    dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
     a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
     return round(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)), 1)
@@ -103,52 +103,53 @@ def departure_to_timestamp(dep_str):
 
 
 def load_airports() -> pd.DataFrame:
-    print("Pobieranie airports.dat...")
+    print("Pobieranie airports.dat")
     resp = requests.get(AIRPORTS_URL, timeout=30)
     df = pd.read_csv(io.StringIO(resp.text), header=None, names=AIRPORT_COLS, na_values=["\\N"])
     df = df[df["country"].isin(EUROPEAN_COUNTRIES)]
     df = df[df["code"].notna() & (df["code"] != "")]
     df = df[df["type"] == "airport"]
-    print(f"  → {len(df)} lotnisk europejskich")
+    print(f"- {len(df)} lotnisk europejskich")
     return df
 
 
 def load_routes(airports: pd.DataFrame) -> pd.DataFrame:
-    print("Pobieranie routes.dat...")
+    print("Pobieranie routes.dat")
     resp = requests.get(ROUTES_URL, timeout=30)
     df = pd.read_csv(io.StringIO(resp.text), header=None, names=ROUTE_COLS, na_values=["\\N"])
     valid_codes = set(airports["code"].dropna())
     df = df[df["src"].isin(valid_codes) & df["dst"].isin(valid_codes)]
     df = df[df["stops"] == 0]
-    print(f"  → {len(df)} tras bezpośrednich między lotniskami europejskimi")
+    print(f"- {len(df)} tras bezpośrednich między lotniskami europejskimi")
     return df
 
 
 def import_airports(driver, airports: pd.DataFrame):
-    print("Import węzłów Airport i City do Neo4j...")
+    print("Import węzłów Airport i City do Neo4j")
     cypher = """
     UNWIND $rows AS row
     MERGE (a:Airport {code: row.code})
-    SET a.name      = row.name,
+    SET a.name = row.name,
         a.city_name = row.city,
-        a.country   = row.country,
-        a.lat       = row.lat,
-        a.lon       = row.lon
+        a.country = row.country,
+        a.lat = row.lat,
+        a.lon = row.lon
     MERGE (c:City {name: row.city})
     ON CREATE SET
-        c.country   = row.country,
-        c.lat       = row.lat,
-        c.lon       = row.lon,
+        c.country = row.country,
+        c.lat = row.lat,
+        c.lon = row.lon,
         c.is_unesco = false
+    MERGE (a)-[:SERVES]->(c)
     """
     rows = airports[["code", "name", "city", "country", "lat", "lon"]].to_dict("records")
     with driver.session() as session:
         session.run(cypher, rows=rows)
-    print(f"  → {len(rows)} lotnisk zaimportowanych")
+    print(f"- {len(rows)} lotnisk zaimportowanych")
 
 
 def import_routes(driver, routes: pd.DataFrame, airports: pd.DataFrame):
-    print("Import relacji FLIGHT_TO do Neo4j...")
+    print("Import relacji FLIGHT_TO do Neo4j")
 
     coords = {
         row["code"]: (row["lat"], row["lon"], row["country"])
@@ -164,7 +165,7 @@ def import_routes(driver, routes: pd.DataFrame, airports: pd.DataFrame):
 
         lat1, lon1, country_src = coords[src]
         lat2, lon2, country_dst = coords[dst]
-        dist     = haversine(lat1, lon1, lat2, lon2)
+        dist = haversine(lat1, lon1, lat2, lon2)
         duration = estimate_duration(dist)
 
         is_popular = src in MAJOR_HUBS or dst in MAJOR_HUBS
@@ -181,21 +182,21 @@ def import_routes(driver, routes: pd.DataFrame, airports: pd.DataFrame):
             price = estimate_price(dist, src, dst, country_src, country_dst)
             dep_ts = departure_to_timestamp(departure)
             arr_ts = dep_ts + duration
-            arr_h  = (arr_ts % 1440) // 60
-            arr_m  = (arr_ts % 1440) % 60
+            arr_h= (arr_ts % 1440) // 60
+            arr_m = (arr_ts % 1440) % 60
             arrival = f"{arr_h:02d}:{arr_m:02d}"
 
             enriched.append({
-                "src":           src,
-                "dst":           dst,
-                "dist_km":       dist,
-                "price":         price,
-                "duration_min":  duration,
-                "departure":     departure,
-                "arrival":       arrival,
+                "src": src,
+                "dst": dst,
+                "dist_km": dist,
+                "price": price,
+                "duration_min": duration,
+                "departure": departure,
+                "arrival": arrival,
                 "dep_timestamp": dep_ts,
                 "arr_timestamp": arr_ts,
-                "flight_id":     f"{src}-{dst}-{departure}",
+                "flight_id": f"{src}-{dst}-{departure}",
             })
 
     cypher = """
@@ -203,11 +204,11 @@ def import_routes(driver, routes: pd.DataFrame, airports: pd.DataFrame):
     MATCH (src:Airport {code: row.src})
     MATCH (dst:Airport {code: row.dst})
     MERGE (src)-[r:FLIGHT_TO {flight_id: row.flight_id}]->(dst)
-    SET r.dist_km       = row.dist_km,
-        r.price         = row.price,
-        r.duration_min  = row.duration_min,
-        r.departure     = row.departure,
-        r.arrival       = row.arrival,
+    SET r.dist_km = row.dist_km,
+        r.price = row.price,
+        r.duration_min = row.duration_min,
+        r.departure = row.departure,
+        r.arrival = row.arrival,
         r.dep_timestamp = row.dep_timestamp,
         r.arr_timestamp = row.arr_timestamp
     """
@@ -217,16 +218,16 @@ def import_routes(driver, routes: pd.DataFrame, airports: pd.DataFrame):
     with driver.session() as session:
         for i in range(0, total, batch_size):
             session.run(cypher, rows=enriched[i:i+batch_size])
-            print(f"  → {min(i+batch_size, total)}/{total}", end="\r")
+            print(f"- {min(i+batch_size, total)}/{total}", end="\r")
 
     routes_count = len(routes)
-    print(f"\n  → {total} lotów z {routes_count} tras (~{total/routes_count:.1f} lotu/trasę)")
+    print(f"\n- {total} lotów z {routes_count} tras (~{total/routes_count:.1f} lotu/trasę)")
 
 
 def main():
-    driver   = get_driver()
+    driver = get_driver()
     airports = load_airports()
-    routes   = load_routes(airports)
+    routes = load_routes(airports)
     import_airports(driver, airports)
     import_routes(driver, routes, airports)
     driver.close()

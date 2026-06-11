@@ -6,36 +6,35 @@ router = APIRouter()
 
 # modele
 class HubResult(BaseModel):
-    airport_name:     str
-    iata_code:        str
-    city:             str
-    country:          str
-    lat:              float
-    lon:              float
+    airport_name: str
+    iata_code: str
+    city: str
+    country: str
+    lat: float
+    lon: float
     centrality_score: float
-    rank:             int
-
+    rank: int
 
 class PathStop(BaseModel):
-    code:      str
-    name:      str
-    city:      str
-    lat:       float
-    lon:       float
+    code: str
+    name: str
+    city: str
+    lat: float
+    lon: float
     node_type: str        # "origin" | "hub" | "destination"
     departure: str | None 
-    arrival:   str | None  
-    leg_price:    float | None
-    leg_dist_km:  float | None
-    leg_duration: int   | None
+    arrival: str | None  
+    leg_price: float | None
+    leg_dist_km: float | None
+    leg_duration: int | None
 
 class PathResult(BaseModel):
-    stops:              list[PathStop]
-    total_cost:         float
-    total_dist_km:      float
+    stops: list[PathStop]
+    total_cost: float
+    total_dist_km: float
     total_duration_min: int
-    hops:               int
-    optimized_by:       str
+    hops: int
+    optimized_by: str
 
 CYPHER_EXISTS = "CALL gds.graph.exists('flight-graph') YIELD exists RETURN exists"
 
@@ -49,8 +48,8 @@ CALL gds.graph.project(
         FLIGHT_TO: {
             orientation: 'NATURAL',
             properties: {
-                price:        { property: 'price',        defaultValue: 9999.0 },
-                dist_km:      { property: 'dist_km',      defaultValue: 9999.0 },
+                price: { property: 'price', defaultValue: 9999.0 },
+                dist_km: { property: 'dist_km',defaultValue: 9999.0 },
                 duration_min: { property: 'duration_min', defaultValue: 9999 }
             }
         }
@@ -59,7 +58,6 @@ CALL gds.graph.project(
 YIELD graphName, nodeCount, relationshipCount
 RETURN graphName, nodeCount, relationshipCount
 """
-
 
 def ensure_projection(svc: Neo4jService):
     try:
@@ -76,10 +74,10 @@ def ensure_projection(svc: Neo4jService):
 def build_betweenness_cypher(top: int, country: str | None, region: str | None) -> tuple[str, dict]:
 
     REGION_COUNTRIES = {
-        "north":   {"Norway", "Sweden", "Denmark", "Finland", "Estonia", "Latvia", "Lithuania"},
-        "south":   {"Italy", "Spain", "Portugal", "Greece", "Croatia", "Slovenia"},
-        "east":    {"Poland", "Czechia", "Czech Republic", "Slovakia", "Hungary", "Romania", "Bulgaria"},
-        "west":    {"France", "Netherlands", "Belgium", "Ireland", "United Kingdom"},
+        "north": {"Norway", "Sweden", "Denmark", "Finland", "Estonia", "Latvia", "Lithuania"},
+        "south": {"Italy", "Spain", "Portugal", "Greece", "Croatia", "Slovenia"},
+        "east": {"Poland", "Czechia", "Czech Republic", "Slovakia", "Hungary", "Romania", "Bulgaria"},
+        "west": {"France", "Netherlands", "Belgium", "Ireland", "United Kingdom"},
         "central": {"Germany", "Austria", "Switzerland", "Luxembourg"},
     }
 
@@ -100,12 +98,12 @@ def build_betweenness_cypher(top: int, country: str | None, region: str | None) 
     WHERE airport.lat IS NOT NULL
       AND airport.lon IS NOT NULL
       {country_filter}
-    RETURN airport.name     AS airport_name,
-           airport.code     AS iata_code,
+    RETURN airport.name AS airport_name,
+           airport.code AS iata_code,
            airport.city_name AS city,
-           airport.country  AS country,
-           airport.lat      AS lat,
-           airport.lon      AS lon,
+           airport.country AS country,
+           airport.lat AS lat,
+           airport.lon  AS lon,
            round(score, 2)  AS centrality_score
     ORDER BY centrality_score DESC
     LIMIT $top
@@ -168,9 +166,9 @@ def create_projection():
     summary="Ranking hubów — Betweenness Centrality z filtrami",
 )
 def get_hubs(
-    top:     int          = Query(30,   description="Liczba wyników (5–100)"),
-    country: str | None   = Query(None, description="Filtruj po kraju, np. 'Germany'"),
-    region:  str | None   = Query(None, description="Makroregion: north|south|east|west|central"),
+    top: int = Query(30,   description="Liczba wyników (5–100)"),
+    country: str | None = Query(None, description="Filtruj po kraju, np. 'Germany'"),
+    region: str | None = Query(None, description="Makroregion: north|south|east|west|central")
 ):
     top = max(5, min(100, top))
     svc = Neo4jService()
@@ -191,10 +189,7 @@ def get_hubs(
     finally:
         svc.close()
 
-@router.get(
-    "/countries",
-    summary="Lista krajów dostępnych w bazie (do filtrów hubów)",
-)
+@router.get("/countries", summary="Lista krajów dostępnych w bazie (do filtrów hubów)")
 def get_countries():
     svc = Neo4jService()
     try:
@@ -209,35 +204,25 @@ def get_countries():
         svc.close()
 
 
-@router.get(
-    "/shortest-path",
-    response_model=PathResult,
-    summary="Najkrótsza ścieżka Dijkstra (GDS) — cena / dystans / czas",
-)
+@router.get( "/shortest-path", response_model=PathResult, summary="Najkrótsza ścieżka Dijkstra (GDS) — cena / dystans / czas")
 def get_shortest_path(
-    src:    str = Query(..., description="Kod IATA źródła, np. WAW"),
-    dst:    str = Query(..., description="Kod IATA celu, np. LIS"),
+    src: str = Query(..., description="Kod IATA źródła, np. WAW"),
+    dst: str = Query(..., description="Kod IATA celu, np. LIS"),
     weight: str = Query("price", description="Kryterium: price | dist_km | duration_min"),
 ):
     if weight not in ("price", "dist_km", "duration_min"):
         raise HTTPException(status_code=422, detail="weight musi być: price | dist_km | duration_min")
-
     svc = Neo4jService()
     try:
         ensure_projection(svc)
-
         cypher = build_dijkstra_cypher(weight)
         rows = svc.query(cypher, {"src": src.upper(), "dst": dst.upper()})
 
         if not rows or not rows[0]["nodeIds"]:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Brak ścieżki {src.upper()} → {dst.upper()} w grafie."
-            )
+            raise HTTPException( status_code=404, detail=f"Brak ścieżki {src.upper()} → {dst.upper()} w grafie." )
 
-        node_ids   = rows[0]["nodeIds"]
+        node_ids = rows[0]["nodeIds"]
         total_cost = rows[0]["totalCost"]
-
         id_rows = svc.query("""
             UNWIND $ids AS nid
             MATCH (a:Airport)
@@ -248,7 +233,6 @@ def get_shortest_path(
         """, {"ids": node_ids})
 
         id_map = {r["code"]: r for r in id_rows}
-
         codes_in_order = []
         for nid in node_ids:
             r = svc.query("""
@@ -258,23 +242,19 @@ def get_shortest_path(
             """, {"nid": nid})
             if r:
                 codes_in_order.append(r[0])
-
         codes = [r["code"] for r in codes_in_order]
-
         legs = get_leg_details(svc, codes)
 
         stops = []
         for i, airport_data in enumerate(codes_in_order):
             leg_before = legs[i - 1] if i > 0 else None
             leg_after  = legs[i]     if i < len(legs) else None
-
             if i == 0:
                 node_type = "origin"
             elif i == len(codes_in_order) - 1:
                 node_type = "destination"
             else:
                 node_type = "hub"
-
             stops.append(PathStop(
                 code=airport_data["code"],
                 name=airport_data["name"],
@@ -282,17 +262,17 @@ def get_shortest_path(
                 lat=airport_data["lat"],
                 lon=airport_data["lon"],
                 node_type=node_type,
-                departure=leg_after["departure"]  if leg_after  else None,
-                arrival=leg_before["arrival"]     if leg_before else None,
-                leg_price=leg_after["price"]          if leg_after else None,
-                leg_dist_km=leg_after["dist_km"]      if leg_after else None,
+                departure=leg_after["departure"] if leg_after  else None,
+                arrival=leg_before["arrival"] if leg_before else None,
+                leg_price=leg_after["price"] if leg_after else None,
+                leg_dist_km=leg_after["dist_km"] if leg_after else None,
                 leg_duration=leg_after["duration_min"] if leg_after else None,
             ))
 
-        total_dist     = sum(l["dist_km"]      for l in legs)
+        total_dist= sum(l["dist_km"] for l in legs)
         total_duration = sum(l["duration_min"] for l in legs)
-        total_price    = sum(l["price"]        for l in legs)
-        hops           = len(legs)
+        total_price = sum(l["price"] for l in legs)
+        hops = len(legs)
 
         return PathResult(
             stops=stops,
@@ -307,5 +287,64 @@ def get_shortest_path(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Błąd Dijkstra: {e}")
+    finally:
+        svc.close()
+
+@router.get( "/graph-edges", summary="Węzły i krawędzie grafu hubów do wizualizacji force-directed")
+def get_graph_edges(
+    top_hubs: int = Query(30, description="Liczba hubów (węzłów)"),
+    top_edges: int = Query(80, description="Liczba krawędzi (połączeń)"),
+):
+    svc = Neo4jService()
+    try:
+        ensure_projection(svc)
+        nodes_rows = svc.query(f"""
+            CALL gds.betweenness.stream('flight-graph')
+            YIELD nodeId, score
+            WITH gds.util.asNode(nodeId) AS airport, score
+            WHERE airport.lat IS NOT NULL AND airport.lon IS NOT NULL
+            RETURN airport.code AS id,
+                   airport.name  AS name,
+                   airport.city_name AS city,
+                   airport.country AS country,
+                   airport.lat AS lat,
+                   airport.lon AS lon,
+                   round(score, 2) AS centrality
+            ORDER BY centrality DESC
+            LIMIT {top_hubs}
+        """)
+        if not nodes_rows:
+            raise HTTPException(status_code=404, detail="Brak danych. Zaimportuj lotniska.")
+        hub_codes = [r["id"] for r in nodes_rows]
+
+        edges_rows = svc.query("""
+            MATCH (src:Airport)-[f:FLIGHT_TO]->(dst:Airport)
+            WHERE src.code IN $codes AND dst.code IN $codes
+            WITH src.code AS source, dst.code AS target,
+                 count(f) AS flights,
+                 min(f.price) AS min_price,
+                 avg(f.price) AS avg_price,
+                 avg(f.dist_km) AS dist_km
+            RETURN source, target, flights, 
+                   round(min_price, 0) AS min_price,
+                   round(avg_price, 0) AS avg_price,
+                   round(dist_km, 0) AS dist_km
+            ORDER BY flights DESC
+            LIMIT $top_edges
+        """, {"codes": hub_codes, "top_edges": top_edges})
+
+        return {
+            "nodes": nodes_rows,
+            "edges": edges_rows,
+            "meta": {
+                "node_count": len(nodes_rows),
+                "edge_count": len(edges_rows),
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Błąd graph-edges: {e}")
     finally:
         svc.close()

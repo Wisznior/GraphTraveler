@@ -15,42 +15,42 @@ class AirportOut(BaseModel):
 
 
 class FlightOut(BaseModel):
-    src_code:     str
-    src_name:     str
-    src_city:     str
-    dst_code:     str
-    dst_name:     str
-    dst_city:     str
-    price:        float
-    dist_km:      float
+    src_code: str
+    src_name: str
+    src_city: str
+    dst_code: str
+    dst_name: str
+    dst_city: str
+    price: float
+    dist_km: float
     duration_min: int
-    departure:    str
-    arrival:      str
+    departure: str
+    arrival: str
 
 
 class ConnectingFlightOut(BaseModel):
-    src_code:           str
-    src_name:           str
-    src_city:           str
-    src_lat:            float
-    src_lon:            float
-    hub_code:           str
-    hub_name:           str
-    hub_city:           str
-    hub_lat:            float
-    hub_lon:            float
-    dst_code:           str
-    dst_name:           str
-    dst_city:           str
-    dst_lat:            float
-    dst_lon:            float
-    total_price:        float
-    total_dist_km:      float
+    src_code: str
+    src_name: str
+    src_city: str
+    src_lat: float
+    src_lon: float
+    hub_code: str
+    hub_name: str
+    hub_city: str
+    hub_lat: float
+    hub_lon: float
+    dst_code: str
+    dst_name: str
+    dst_city: str
+    dst_lat: float
+    dst_lon:  float
+    total_price: float
+    total_dist_km:  float
     total_duration_min: int
-    first_departure:    str
-    first_arrival:      str
-    second_departure:   str
-    second_arrival:     str
+    first_departure: str
+    first_arrival: str
+    second_departure: str
+    second_arrival: str
 
 
 CYPHER_CITIES = """
@@ -101,9 +101,9 @@ CYPHER_CONNECTING = """
 MATCH (src:Airport {code: $src})-[f1:FLIGHT_TO]->(hub:Airport)-[f2:FLIGHT_TO]->(dst:Airport {code: $dst})
 WHERE hub <> src AND hub <> dst
 WITH src, f1, hub, f2, dst,
-     f1.price + f2.price                             AS total_price,
-     f1.dist_km + f2.dist_km                         AS total_dist_km,
-     f1.duration_min + f2.duration_min + 90          AS total_duration_min
+     f1.price + f2.price AS total_price,
+     f1.dist_km + f2.dist_km AS total_dist_km,
+     f1.duration_min + f2.duration_min + 90 AS total_duration_min
 RETURN src.code AS src_code, src.name AS src_name, src.city_name AS src_city,
        src.lat  AS src_lat,  src.lon  AS src_lon,
        hub.code AS hub_code, hub.name AS hub_name, hub.city_name AS hub_city,
@@ -140,9 +140,9 @@ def get_airports(city: str | None = Query(None)):
 
 @router.get("/flights", response_model=list[FlightOut], summary="Loty z opcjonalnym filtrem")
 def get_flights(
-    src:   str | None = Query(None),
-    dst:   str | None = Query(None),
-    limit: int        = Query(100),
+    src: str | None = Query(None),
+    dst: str | None = Query(None),
+    limit: int = Query(100),
 ):
     svc = Neo4jService()
     try:
@@ -160,8 +160,8 @@ def get_flights(
 
 @router.get("/flights/connecting", response_model=list[ConnectingFlightOut], summary="Loty z przesiadką")
 def get_connecting_flights(
-    src:   str = Query(...),
-    dst:   str = Query(...),
+    src: str = Query(...),
+    dst: str = Query(...),
     limit: int = Query(15),
 ):
     svc = Neo4jService()
