@@ -1,14 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import routes, analytics
+from routers import routes, analytics, trips
 from services.neo4j_service import Neo4jService
 
-app = FastAPI(
-    title="GraphTraveler API",
-    description="Multimodalny Asystent Podróży – Neo4j + FastAPI",
-    version="1.0.0",
-)
+app = FastAPI( title="GraphTraveler API", description="Multimodalny Asystent Podróży – Neo4j + FastAPI", version="1.0.0" )
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,7 +16,7 @@ app.add_middleware(
 
 app.include_router(routes.router,    prefix="/api/routes",    tags=["Routes"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
-
+app.include_router(trips.router, prefix = "/api/trips", tags =["Trips"])
 
 @app.get("/", tags=["Health"])
 def root():
