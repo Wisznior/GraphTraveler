@@ -3,19 +3,20 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev":     "vite --host 0.0.0.0 --port 3000",
-    "build":   "vite build",
+    "dev":  "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "react":             "^18.3.1",
-    "react-dom":         "^18.3.1",
-    "react-leaflet":     "^4.2.1",
-    "leaflet":           "^1.9.4",
-    "react-router-dom":  "^6.24.0"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1",
+    "leaflet": "^1.9.4",
+    "react-router-dom": "^6.24.0",
+    "force-graph": "^1.43.5"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
-    "vite":                 "^5.3.1"
+    "vite": "^5.3.1"
   }
 }

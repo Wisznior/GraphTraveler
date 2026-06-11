@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import FlightsPage   from './pages/FlightsPage.jsx'
 import AnalyticsPage from './pages/AnalyticsPage.jsx'
+import TripPlannerPage from './pages/TripPlannerPage.jsx'
 
 function App() {
   return (
@@ -24,7 +25,7 @@ function App() {
             </span>
           </div>
 
-          {[['/', 'Połączenia lotnicze', true], ['/analytics', 'Analiza sieci', false]].map(([to, label, end]) => (
+          {[['/', 'Połączenia lotnicze', true], ['/analytics', 'Analiza sieci', false], ['/planner', 'Planner podróży', false]].map(([to, label, end]) => (
             <NavLink key={to} to={to} end={end} style={({ isActive }) => ({
               color: isActive ? '#fff' : 'rgba(255,255,255,0.55)',
               textDecoration: 'none', fontSize: '0.875rem',
@@ -38,8 +39,9 @@ function App() {
 
         <main style={{ flex: 1, padding: '2rem 1.5rem', maxWidth: '1320px', margin: '0 auto', width: '100%' }}>
           <Routes>
-            <Route path="/"          element={<FlightsPage />} />
+            <Route path="/" element={<FlightsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/planner" element={<TripPlannerPage />}/>
           </Routes>
         </main>
 

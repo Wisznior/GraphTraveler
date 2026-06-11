@@ -67,7 +67,7 @@ export default function MapView({
 
         {polylines.map((p, i) => {
           const positions = Array.isArray(p) ? p : p.positions
-          const color     = Array.isArray(p) ? '#0a9396' : (p.color || '#0a9396')
+          const color = Array.isArray(p) ? '#0a9396' : (p.color || '#0a9396')
           return (
             <Polyline key={i} positions={positions} color={color}
               weight={2} opacity={0.6} dashArray="6 8" />
@@ -80,10 +80,10 @@ export default function MapView({
             center={[m.lat, m.lon]}
             radius={m.type === 'Hub' ? 8 : 5}
             pathOptions={{
-              color:       m.type === 'Hub' ? '#ee9b00' : '#0a9396',
-              fillColor:   m.type === 'Hub' ? '#ee9b00' : '#0a9396',
+              color: m.type === 'Hub' ? '#ee9b00' : '#0a9396',
+              fillColor: m.type === 'Hub' ? '#ee9b00' : '#0a9396',
               fillOpacity: 0.9,
-              weight:      2,
+              weight:  2,
             }}
             eventHandlers={onAirportClick && m.code ? { click: () => onAirportClick(m.code) } : {}}
           >
