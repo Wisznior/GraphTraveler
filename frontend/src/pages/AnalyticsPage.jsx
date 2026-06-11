@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getHubs, getShortestPath, getAirports, getCountries } from '../api/client.js'
+import { getHubs, getShortestPath, getAirports, getCountries, getGraphEdges } from '../api/client.js'
 import MapView from '../components/MapView.jsx'
 
 function Card({ children, style = {} }) {
@@ -21,10 +21,10 @@ function Btn({ children, onClick, disabled, variant = 'primary', size = 'md', st
     fontSize: size === 'sm' ? '0.8rem' : '0.88rem',
   }
   const variants = {
-    primary: { background: 'var(--teal)',        color: '#fff' },
-    ghost:   { background: 'transparent',        color: 'var(--text-muted)', border: '1px solid var(--border)' },
-    active:  { background: 'var(--teal-light)',  color: 'var(--teal)',       border: '1px solid var(--teal-mid)' },
-    amber:   { background: 'var(--amber-light)', color: '#92560a',           border: '1px solid #f5d88a' },
+    primary: { background: 'var(--teal)', color: '#fff' },
+    ghost:   { background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)' },
+    active:  { background: 'var(--teal-light)', color: 'var(--teal)', border: '1px solid var(--teal-mid)' },
+    amber:   { background: 'var(--amber-light)', color: '#92560a',  border: '1px solid #f5d88a' },
   }
   return <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...s }}>{children}</button>
 }
@@ -32,10 +32,10 @@ function Btn({ children, onClick, disabled, variant = 'primary', size = 'md', st
 function IataTag({ code, variant = 'teal' }) {
   const styles = {
     teal:   { background: 'var(--teal-light)',  color: 'var(--teal)',  border: '1px solid var(--teal-mid)' },
-    amber:  { background: 'var(--amber-light)', color: '#92560a',     border: '1px solid #f5d88a' },
-    purple: { background: '#f0ebff',            color: '#6941c6',     border: '1px solid #c4b5fd' },
-    navy:   { background: '#e8f0f5',            color: 'var(--navy)', border: '1px solid #b8cdd8' },
-    green:  { background: '#dcfce7',            color: '#15803d',     border: '1px solid #86efac' },
+    amber:  { background: 'var(--amber-light)', color: '#92560a', border: '1px solid #f5d88a' },
+    purple: { background: '#f0ebff', color: '#6941c6', border: '1px solid #c4b5fd' },
+    navy:   { background: '#e8f0f5',color: 'var(--navy)', border: '1px solid #b8cdd8' },
+    green:  { background: '#dcfce7', color: '#15803d',  border: '1px solid #86efac' },
   }
   return (
     <span style={{
@@ -56,7 +56,7 @@ function Label({ children }) {
 }
 
 function AirportPicker({ airports, value, onChange, placeholder }) {
-  const [q, setQ]       = useState('')
+  const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const [focus, setFocus] = useState(false)
   const ref = useRef()
@@ -179,14 +179,12 @@ function HubGraph({ hubs }) {
           const [x] = project(0, lon)
           return <line key={lon} x1={x} y1={0} x2={x} y2={H} stroke="#e2eaec" strokeWidth={0.5} />
         })}
-
         {nodes.slice(0, 12).flatMap((a, i) =>
           nodes.slice(i + 1, 12).map((b, j) => (
             <line key={`${i}-${j}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
               stroke="#94d2bd" strokeWidth={0.7} opacity={0.4} />
           ))
         )}
-
         {nodes.map(n => (
           <g key={n.iata_code}>
             <circle cx={n.x} cy={n.y} r={n.r + 5} fill={nodeColor(n.rank)} opacity={0.1} />
@@ -198,7 +196,6 @@ function HubGraph({ hubs }) {
             </text>
           </g>
         ))}
-
         <g transform={`translate(10, ${H - 25})`}>
           {[['#0a9396', 'Top 3'], ['#ee9b00', 'Top 4–10'], ['#94a3b8', 'Pozostałe']].map(([c, l], i) => (
             <g key={i} transform={`translate(${i * 100}, 0)`}>
@@ -220,56 +217,34 @@ function PathTimeline({ stops }) {
           const isLast = i === stops.length - 1
           return (
             <div key={i} style={{ display: 'flex', alignItems: 'center' }}>
-              {/* Węzeł */}
               <div style={{
                 background: 'var(--surface)', border: '1px solid var(--border)',
                 borderRadius: 10, padding: '0.75rem 1rem', textAlign: 'center',
                 minWidth: 110, boxShadow: 'var(--shadow-sm)',
               }}>
-                <IataTag
-                  code={s.code}
-                  variant={s.node_type === 'origin' ? 'teal' : s.node_type === 'hub' ? 'purple' : 'amber'}
-                />
+                <IataTag code={s.code} variant={s.node_type === 'origin' ? 'teal' : s.node_type === 'hub' ? 'purple' : 'amber'} />
                 <div style={{ fontSize: '0.78rem', color: 'var(--text)', fontWeight: 500, marginTop: 4 }}>{s.city}</div>
-
-                {/* Przylot */}
                 {s.arrival && (
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-faint)', marginTop: 4 }}>
                     <span style={{ color: 'var(--text-muted)' }}>przyl.</span> {s.arrival}
                   </div>
                 )}
-                {/* Odlot */}
                 {s.departure && (
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-faint)', marginTop: s.arrival ? 1 : 4 }}>
                     <span style={{ color: 'var(--text-muted)' }}>odl.</span> {s.departure}
                   </div>
                 )}
               </div>
-
-              {/* Łącznik z informacjami o locie */}
               {!isLast && s.leg_price != null && (
-                <div style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  padding: '0 8px', minWidth: 90,
-                }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--teal)', fontWeight: 700 }}>
-                    {s.leg_price} EUR
-                  </div>
-                  <div style={{
-                    width: '100%', height: 1, background: 'var(--border)',
-                    margin: '3px 0', position: 'relative',
-                  }}>
-                    <span style={{
-                      position: 'absolute', right: -4, top: -5,
-                      color: 'var(--text-faint)', fontSize: '0.7rem',
-                    }}>→</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 8px', minWidth: 90 }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--teal)', fontWeight: 700 }}>{s.leg_price} EUR</div>
+                  <div style={{ width: '100%', height: 1, background: 'var(--border)', margin: '3px 0', position: 'relative' }}>
+                    <span style={{ position: 'absolute', right: -4, top: -5, color: 'var(--text-faint)', fontSize: '0.7rem' }}>→</span>
                   </div>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-faint)' }}>
                     {Math.floor(s.leg_duration / 60)}h {s.leg_duration % 60}min
                   </div>
-                  <div style={{ fontSize: '0.67rem', color: 'var(--text-faint)' }}>
-                    {s.leg_dist_km} km
-                  </div>
+                  <div style={{ fontSize: '0.67rem', color: 'var(--text-faint)' }}>{s.leg_dist_km} km</div>
                 </div>
               )}
             </div>
@@ -280,26 +255,162 @@ function PathTimeline({ stops }) {
   )
 }
 
-// main page
+function ForceGraph({ nodes, edges, maxCentrality }) {
+  const canvasRef = useRef()
+  const animRef = useRef()
+  const nodeMap = useRef({})
+
+  useEffect(() => {
+    if (!nodes.length || !canvasRef.current) return
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const W = canvas.width
+    const H = canvas.height
+
+    function projectGeo(lat, lon) {
+      const x = ((lon - (-12)) / 52) * (W - 80) + 40
+      const y = ((71 - lat)  / 36)  * (H - 80) + 40
+      return {
+        x: Math.max(20, Math.min(W - 20, x)),
+        y: Math.max(20, Math.min(H - 20, y)),
+      }
+    }
+
+    //tylko nowe węzły
+    nodes.forEach(n => {
+      if (!nodeMap.current[n.id]) {
+        const pos = projectGeo(n.lat, n.lon)
+        nodeMap.current[n.id] = { ...n, x: pos.x, y: pos.y, vx: 0, vy: 0 }
+      }
+    })
+
+    //usuniecie tych co już nie ma
+    const currentIds = new Set(nodes.map(n => n.id))
+    Object.keys(nodeMap.current).forEach(k => {
+      if (!currentIds.has(k)) delete nodeMap.current[k]
+    })
+
+    const nm = nodeMap.current
+
+    function tick() {
+      const arr = Object.values(nm)
+
+      //odpychanie
+      for (let i = 0; i < arr.length; i++) {
+        for (let j = i + 1; j < arr.length; j++) {
+          const a = arr[i], b = arr[j]
+          const dx = b.x - a.x, dy = b.y - a.y
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1
+          const f = 900 / (dist * dist)
+          const fx = (dx / dist) * f, fy = (dy / dist) * f
+          a.vx -= fx; a.vy -= fy
+          b.vx += fx; b.vy += fy
+        }
+      }
+
+      //przyciaganie po krawędziach
+      edges.forEach(e => {
+        const a = nm[e.source], b = nm[e.target]
+        if (!a || !b) return
+        const dx = b.x - a.x, dy = b.y - a.y
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1
+        const ideal = 70 + (e.dist_km || 500) / 100
+        const f = (dist - ideal) * 0.01
+        const fx = (dx / dist) * f, fy = (dy / dist) * f
+        a.vx += fx; a.vy += fy
+        b.vx -= fx; b.vy -= fy
+      })
+
+      //grawitacja do centrum
+      arr.forEach(n => {
+        n.vx += (W / 2 - n.x) * 0.0015
+        n.vy += (H / 2 - n.y) * 0.0015
+        n.vx *= 0.80; n.vy *= 0.80
+        n.x = Math.max(18, Math.min(W - 18, n.x + n.vx))
+        n.y = Math.max(18, Math.min(H - 18, n.y + n.vy))
+      })
+    }
+
+    function nodeR(c) { return 4 + (c / maxCentrality) * 17 }
+    function nodeCol(c) {
+      const r = c / maxCentrality
+      return r > 0.66 ? '#0a9396' : r > 0.33 ? '#ee9b00' : '#94a3b8'
+    }
+
+    let frame = 0
+    function draw() {
+      if (frame < 150) tick()
+      frame++
+
+      ctx.clearRect(0, 0, W, H)
+
+      ctx.strokeStyle = '#e8f0f5'; ctx.lineWidth = 0.5
+      for (let x = 0; x < W; x += 70) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke() }
+      for (let y = 0; y < H; y += 70) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke() }
+
+      edges.forEach(e => {
+        const a = nm[e.source], b = nm[e.target]
+        if (!a || !b) return
+        const alpha = Math.min(0.65, 0.08 + (e.flights || 1) / 14)
+        ctx.strokeStyle = `rgba(10,147,150,${alpha})`
+        ctx.lineWidth = Math.min(3.5, 0.4 + (e.flights || 1) / 7)
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke()
+      })
+
+      Object.values(nm).forEach(n => {
+        const r   = nodeR(n.centrality)
+        const col = nodeCol(n.centrality)
+        ctx.beginPath(); ctx.arc(n.x, n.y, r + 5, 0, Math.PI * 2)
+        ctx.fillStyle = col + '20'; ctx.fill()
+        ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2)
+        ctx.fillStyle = col; ctx.fill()
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke()
+        if (r > 7) {
+          ctx.fillStyle = '#0d2d3a'
+          ctx.font = `600 ${Math.min(11, 6 + r * 0.35)}px "DM Mono", monospace`
+          ctx.textAlign = 'center'
+          ctx.fillText(n.id, n.x, n.y - r - 4)
+        }
+      })
+
+      animRef.current = requestAnimationFrame(draw)
+    }
+
+    draw()
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current) }
+  }, [nodes, edges, maxCentrality])
+
+  return (
+    <canvas ref={canvasRef} width={700} height={430} style={{
+      width: '100%', maxWidth: 700, display: 'block',
+      borderRadius: 10, border: '1px solid var(--border)',
+      background: '#f8fbfc',
+    }} />
+  )
+}
+
+//main page
 export default function AnalyticsPage() {
-  const [airports,     setAirports]     = useState([])
-  const [countries,    setCountries]    = useState([])
-  const [hubs,         setHubs]         = useState([])
-  const [hubsLoading,  setHubsLoading]  = useState(false)
-  const [hubsError,    setHubsError]    = useState('')
-
-  //filtry hubów
-  const [hubTop,     setHubTop]     = useState(30)
+  const [airports, setAirports] = useState([])
+  const [countries, setCountries] = useState([])
+  const [hubs, setHubs] = useState([])
+  const [hubsLoading, setHubsLoading] = useState(false)
+  const [hubsError, setHubsError] = useState('')
+  const [hubTop, setHubTop] = useState(30)
   const [hubCountry, setHubCountry] = useState('')
-  const [hubRegion,  setHubRegion]  = useState('')
+  const [hubRegion, setHubRegion] = useState('')
 
-  //dijkstra
-  const [pathSrc,     setPathSrc]     = useState('')
-  const [pathDst,     setPathDst]     = useState('')
-  const [pathWeight,  setPathWeight]  = useState('price')
-  const [pathResult,  setPathResult]  = useState(null)
+  const [pathSrc, setPathSrc] = useState('')
+  const [pathDst, setPathDst] = useState('')
+  const [pathWeight, setPathWeight] = useState('price')
+  const [pathResult, setPathResult] = useState(null)
   const [pathLoading, setPathLoading] = useState(false)
-  const [pathError,   setPathError]   = useState('')
+  const [pathError, setPathError] = useState('')
+
+  const [graphData, setGraphData] = useState(null)
+  const [graphLoading, setGraphLoading] = useState(false)
+  const [graphError,setGraphError] = useState('')
+  const [graphTopHubs, setGraphTopHubs] = useState(30)
 
   const [activeTab, setActiveTab] = useState('hubs')
 
@@ -314,26 +425,24 @@ export default function AnalyticsPage() {
       const params = { top: hubTop }
       if (hubCountry) params.country = hubCountry
       else if (hubRegion) params.region = hubRegion
-      const data = await getHubs(params)
-      setHubs(data)
-    } catch (e) {
-      setHubsError(e.message)
-    } finally {
-      setHubsLoading(false)
-    }
+      setHubs(await getHubs(params))
+    } catch (e) { setHubsError(e.message) }
+    finally { setHubsLoading(false) }
   }
 
   async function findPath() {
     if (!pathSrc || !pathDst) return
     setPathLoading(true); setPathError(''); setPathResult(null)
-    try {
-      const data = await getShortestPath(pathSrc, pathDst, pathWeight)
-      setPathResult(data)
-    } catch (e) {
-      setPathError(e.message)
-    } finally {
-      setPathLoading(false)
-    }
+    try { setPathResult(await getShortestPath(pathSrc, pathDst, pathWeight)) }
+    catch (e) { setPathError(e.message) }
+    finally { setPathLoading(false) }
+  }
+
+  async function loadGraph() {
+    setGraphLoading(true); setGraphError('')
+    try { setGraphData(await getGraphEdges(graphTopHubs, graphTopHubs * 3)) }
+    catch (e) { setGraphError(e.message) }
+    finally { setGraphLoading(false) }
   }
 
   const hubMarkers = hubs.map(h => ({
@@ -348,8 +457,7 @@ export default function AnalyticsPage() {
     lat: s.lat, lon: s.lon,
     label: `${s.code} — ${s.city}`,
     type: s.node_type === 'hub' ? 'Hub' : 'Airport',
-    popup: s.name,
-    code: s.code,
+    popup: s.name, code: s.code,
   })) : []
 
   const pathLines = pathResult ? pathResult.stops.slice(0, -1).map((s, i) => ({
@@ -358,16 +466,12 @@ export default function AnalyticsPage() {
   })) : []
 
   const maxScore = hubs.length > 0 ? hubs[0].centrality_score : 1
-
   const WEIGHT_LABELS = { price: 'Cena', dist_km: 'Dystans', duration_min: 'Czas' }
 
-  const REGIONS = [
-    ['', 'Cała Europa'],
-    ['north',   'Europa Północna'],
-    ['west',    'Europa Zachodnia'],
-    ['central', 'Europa Centralna'],
-    ['east',    'Europa Wschodnia'],
-    ['south',   'Europa Południowa'],
+  const TABS = [
+    ['hubs',  '🔗 Analiza hubów'],
+    ['path',  '🗺 Najkrótsza ścieżka (Dijkstra)'],
+    ['graph', '🕸 Graf interaktywny'],
   ]
 
   return (
@@ -377,13 +481,13 @@ export default function AnalyticsPage() {
           Analiza sieci lotniczej
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: '0.3rem' }}>
-          Algorytmy grafowe GDS — Betweenness Centrality i Dijkstra Shortest Path
+          Algorytmy grafowe GDS — Betweenness Centrality, Dijkstra Shortest Path, Graf interaktywny
         </p>
       </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)' }}>
-        {[['hubs', 'Analiza hubów'], ['path', 'Najkrótsza ścieżka (Dijkstra)']].map(([key, label]) => (
+        {TABS.map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)} style={{
             padding: '0.6rem 1.1rem', fontFamily: 'inherit',
             fontWeight: activeTab === key ? 600 : 400,
@@ -395,7 +499,6 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      {/* HUBS */}
       {activeTab === 'hubs' && (
         <>
           <Card>
@@ -405,10 +508,7 @@ export default function AnalyticsPage() {
               Wysoki wynik = krytyczny węzeł tranzytowy.
             </p>
 
-            {/* Filtry */}
             <div style={{ marginBottom: '1rem' }}>
-
-              {/* Liczba wyników */}
               <div style={{ marginBottom: '0.875rem' }}>
                 <Label>Liczba wyników</Label>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -419,17 +519,16 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              {/* Makroregion */}
               <div style={{ marginBottom: '0.875rem' }}>
                 <Label>Makroregion Europy</Label>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   {[
-                    ['',        'Cała Europa'],
-                    ['north',   'Północna'],
-                    ['west',    'Zachodnia'],
+                    ['', 'Cała Europa'],
+                    ['north','Północna'],
+                    ['west', 'Zachodnia'],
                     ['central', 'Centralna'],
-                    ['east',    'Wschodnia'],
-                    ['south',   'Południowa'],
+                    ['east','Wschodnia'],
+                    ['south', 'Południowa'],
                   ].map(([v, label]) => (
                     <Btn key={v} size="sm"
                       variant={hubRegion === v && !hubCountry ? 'active' : 'ghost'}
@@ -440,50 +539,38 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              {/* Konkretny kraj — z dynamicznej listy */}
               <div style={{ marginBottom: '1rem' }}>
                 <Label>
                   Konkretny kraj
                   {countries.length === 0 && (
-                    <span style={{ color: 'var(--amber)', fontWeight: 400, textTransform: 'none',
-                      letterSpacing: 0, marginLeft: 8 }}>
+                    <span style={{ color: 'var(--amber)', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 8 }}>
                       (ładowanie…)
                     </span>
                   )}
                 </Label>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <select
-                    value={hubCountry}
-                    onChange={e => {  setHubCountry(e.target.value)
-                                      setHubRegion('') }}
+                  <select value={hubCountry}
+                    onChange={e => { setHubCountry(e.target.value); setHubRegion('') }}
                     style={{
                       padding: '0.6rem 0.75rem', minWidth: 200,
                       border: `1.5px solid ${hubCountry ? 'var(--teal)' : 'var(--border)'}`,
                       borderRadius: 8, fontFamily: 'inherit', fontSize: '0.88rem',
-                      background: '#fafcfc', color: 'var(--text)',
-                      outline: 'none', cursor: 'pointer',
+                      background: '#fafcfc', color: 'var(--text)', outline: 'none', cursor: 'pointer',
                     }}>
                     <option value="">— wszystkie kraje —</option>
-                    {countries.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
+                    {countries.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                   {hubCountry && (
-                    <Btn size="sm" variant="ghost"
-                      onClick={() => setHubCountry('')}>
-                      ✕ wyczyść
-                    </Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => setHubCountry('')}>✕ wyczyść</Btn>
                   )}
                 </div>
               </div>
 
-              {/* Aktywny filtr */}
               {(hubRegion || hubCountry) && (
                 <div style={{
                   fontSize: '0.8rem', color: 'var(--teal)', marginBottom: '0.75rem',
                   background: 'var(--teal-light)', padding: '0.4rem 0.8rem',
-                  borderRadius: 6, border: '1px solid var(--teal-mid)',
-                  display: 'inline-block',
+                  borderRadius: 6, border: '1px solid var(--teal-mid)', display: 'inline-block',
                 }}>
                   Filtr aktywny: {hubCountry || {
                     north: 'Europa Północna', west: 'Europa Zachodnia',
@@ -499,10 +586,7 @@ export default function AnalyticsPage() {
             </Btn>
 
             {hubsError && (
-              <div style={{
-                marginTop: '0.75rem', color: '#c53030', fontSize: '0.85rem',
-                background: '#fff5f5', padding: '0.6rem 0.9rem', borderRadius: 6,
-              }}>
+              <div style={{ marginTop: '0.75rem', color: '#c53030', fontSize: '0.85rem', background: '#fff5f5', padding: '0.6rem 0.9rem', borderRadius: 6 }}>
                 {hubsError}
               </div>
             )}
@@ -519,7 +603,7 @@ export default function AnalyticsPage() {
 
               <Card>
                 <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '1rem' }}>
-                  Wizualizacja grafu — top {Math.min(hubs.length, 25)} hubów
+                  Wizualizacja grafu geograficznego — top {Math.min(hubs.length, 25)} hubów
                 </div>
                 <HubGraph hubs={hubs} />
               </Card>
@@ -532,7 +616,7 @@ export default function AnalyticsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                   {[hubs.slice(0, Math.ceil(hubs.length / 2)), hubs.slice(Math.ceil(hubs.length / 2))].map((col, ci) => (
                     <div key={ci}>
-                      {col.map((h, i) => (
+                      {col.map((h) => (
                         <div key={h.iata_code} style={{ marginBottom: '0.75rem' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -553,7 +637,6 @@ export default function AnalyticsPage() {
         </>
       )}
 
-      {/* dijkstra */}
       {activeTab === 'path' && (
         <>
           <Card>
@@ -600,39 +683,27 @@ export default function AnalyticsPage() {
 
           {pathResult && (
             <>
-              {/* Statystyki */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
                 {[
-                  ['Łączna cena',   `${pathResult.total_cost} EUR`,
-                    'var(--teal)',  pathResult.optimized_by === 'price'],
-                  ['Dystans',       `${pathResult.total_dist_km} km`,
-                    'var(--navy)', pathResult.optimized_by === 'dist_km'],
-                  ['Czas lotu',     `${Math.floor(pathResult.total_duration_min / 60)}h ${pathResult.total_duration_min % 60}min`,
-                    'var(--navy)', pathResult.optimized_by === 'duration_min'],
-                  ['Przesiadki',    pathResult.hops === 1 ? 'Bezpośredni' : `${pathResult.hops - 1} przesiadka${pathResult.hops - 1 > 1 ? 'i' : ''}`,
-                    pathResult.hops === 1 ? '#16a34a' : '#92560a', false],
-                ].map(([label, value, color, isOptimized]) => (
+                  ['Łączna cena',  `${pathResult.total_cost} EUR`,  'var(--teal)',  pathResult.optimized_by === 'price'],
+                  ['Dystans',  `${pathResult.total_dist_km} km`, 'var(--navy)', pathResult.optimized_by === 'dist_km'],
+                  ['Czas lotu',`${Math.floor(pathResult.total_duration_min/60)}h ${pathResult.total_duration_min%60}min`, 'var(--navy)', pathResult.optimized_by === 'duration_min'],
+                  ['Przesiadki', pathResult.hops === 1 ? 'Bezpośredni' : `${pathResult.hops - 1} przesiadka${pathResult.hops - 1 > 1 ? 'i' : ''}`, pathResult.hops === 1 ? '#16a34a' : '#92560a', false],
+                ].map(([label, value, color, isOpt]) => (
                   <div key={label} style={{
-                    background: isOptimized ? 'var(--teal-light)' : 'var(--surface)',
+                    background: isOpt ? 'var(--teal-light)' : 'var(--surface)',
                     borderRadius: 10,
-                    border: `1px solid ${isOptimized ? 'var(--teal-mid)' : 'var(--border)'}`,
+                    border: `1px solid ${isOpt ? 'var(--teal-mid)' : 'var(--border)'}`,
                     padding: '1rem', boxShadow: 'var(--shadow-sm)',
                   }}>
-                    <div style={{
-                      fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.07em',
-                      textTransform: 'uppercase', marginBottom: 4,
-                      color: isOptimized ? 'var(--teal)' : 'var(--text-faint)',
-                    }}>
-                      {label} {isOptimized && '★'}
+                    <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 4, color: isOpt ? 'var(--teal)' : 'var(--text-faint)' }}>
+                      {label} {isOpt && '★'}
                     </div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 700, color, letterSpacing: '-0.02em' }}>
-                      {value}
-                    </div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 700, color, letterSpacing: '-0.02em' }}>{value}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Timeline */}
               <Card>
                 <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '1rem' }}>
                   Trasa — {pathResult.stops.length} lotnisk · optymalizacja: {WEIGHT_LABELS[pathResult.optimized_by]}
@@ -640,7 +711,6 @@ export default function AnalyticsPage() {
                 <PathTimeline stops={pathResult.stops} />
               </Card>
 
-              {/* Mapa */}
               <Card style={{ padding: '1rem' }}>
                 <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.875rem' }}>
                   Mapa trasy
@@ -653,6 +723,142 @@ export default function AnalyticsPage() {
                 />
               </Card>
             </>
+          )}
+        </>
+      )}
+
+      {activeTab === 'graph' && (
+        <>
+          <Card>
+            <p style={{ fontSize: '0.87rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: 1.6 }}>
+              <strong style={{ color: 'var(--navy)' }}>Interaktywny graf sieci lotniczej</strong> —
+              węzły to huby lotniskowe, krawędzie to bezpośrednie połączenia między nimi.
+              Rozmiar węzła proporcjonalny do Betweenness Centrality.
+              Grubość krawędzi proporcjonalna do liczby lotów dziennie.
+              Graf stabilizuje się po kilku sekundach symulacji sił fizycznych.
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
+              <div>
+                <Label>Liczba węzłów (hubów)</Label>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  {[20, 30, 40, 50].map(n => (
+                    <Btn key={n} size="sm" variant={graphTopHubs === n ? 'active' : 'ghost'}
+                      onClick={() => setGraphTopHubs(n)}>
+                      {n} węzłów
+                    </Btn>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginTop: 'auto' }}>
+                <Btn onClick={loadGraph} disabled={graphLoading}>
+                  {graphLoading ? 'Ładuję…' : graphData ? 'Odśwież graf' : 'Wygeneruj graf'}
+                </Btn>
+              </div>
+            </div>
+
+            {graphError && (
+              <div style={{ color: '#c53030', fontSize: '0.85rem', background: '#fff5f5', padding: '0.6rem 0.9rem', borderRadius: 6 }}>
+                {graphError}
+              </div>
+            )}
+          </Card>
+
+          {graphData && (
+            <>
+              <Card style={{ padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.875rem', flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+                    Graf sieci — {graphData.meta.node_count} węzłów · {graphData.meta.edge_count} krawędzi
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, fontSize: '0.78rem', color: 'var(--text-faint)' }}>
+                    <span><span style={{ color: '#0a9396', fontWeight: 700 }}>●</span> Wysoka centralność</span>
+                    <span><span style={{ color: '#ee9b00', fontWeight: 700 }}>●</span> Średnia</span>
+                    <span><span style={{ color: '#94a3b8', fontWeight: 700 }}>●</span> Niska</span>
+                  </div>
+                </div>
+                <ForceGraph
+                  nodes={graphData.nodes}
+                  edges={graphData.edges}
+                  maxCentrality={graphData.nodes[0]?.centrality || 1}
+                />
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-faint)', marginTop: '0.75rem' }}>
+                  Symulacja sił fizycznych — węzły połączone lotami przyciągają się, niepołączone odpychają.
+                </p>
+              </Card>
+
+              <Card>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--navy)', marginBottom: '1rem', letterSpacing: '-0.01em' }}>
+                  Węzły grafu
+                  <span style={{ color: 'var(--text-faint)', fontWeight: 400, marginLeft: 8 }}>({graphData.nodes.length})</span>
+                </h3>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        {['#', 'Kod', 'Miasto', 'Kraj', 'Centralność', 'Połączenia w grafie'].map(h => (
+                          <th key={h} style={{
+                            padding: '0.6rem 0.9rem', textAlign: 'left',
+                            fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.07em',
+                            textTransform: 'uppercase', color: 'var(--text-faint)',
+                            borderBottom: '1px solid var(--border)', background: '#fafcfc',
+                          }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {graphData.nodes.map((n, i) => {
+                        const edgeCount = graphData.edges.filter(e => e.source === n.id || e.target === n.id).length
+                        return (
+                          <tr key={n.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafcfc' }}>
+                            <td style={{ padding: '0.6rem 0.9rem', color: 'var(--text-faint)', fontSize: '0.78rem', fontFamily: 'var(--mono)' }}>{i + 1}</td>
+                            <td style={{ padding: '0.6rem 0.9rem' }}>
+                              <IataTag code={n.id} variant={i < 3 ? 'teal' : i < 10 ? 'amber' : 'navy'} />
+                            </td>
+                            <td style={{ padding: '0.6rem 0.9rem', fontSize: '0.87rem', fontWeight: 500 }}>{n.city}</td>
+                            <td style={{ padding: '0.6rem 0.9rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{n.country}</td>
+                            <td style={{ padding: '0.6rem 0.9rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ flex: 1, background: 'var(--border)', borderRadius: 3, height: 5 }}>
+                                  <div style={{
+                                    width: `${(n.centrality / (graphData.nodes[0]?.centrality || 1)) * 100}%`,
+                                    background: i < 3 ? 'var(--teal)' : i < 10 ? 'var(--amber)' : '#94a3b8',
+                                    height: '100%', borderRadius: 3,
+                                  }} />
+                                </div>
+                                <span style={{ fontFamily: 'var(--mono)', fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: 60 }}>
+                                  {n.centrality.toLocaleString('pl-PL')}
+                                </span>
+                              </div>
+                            </td>
+                            <td style={{ padding: '0.6rem 0.9rem', fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                              {edgeCount}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </>
+          )}
+
+          {!graphData && !graphLoading && !graphError && (
+            <div style={{
+              background: 'var(--surface)', borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)', padding: '3rem 2rem',
+              textAlign: 'center', color: 'var(--text-faint)',
+            }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem', opacity: 0.3 }}>🕸</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
+                Kliknij „Wygeneruj graf" aby zwizualizować sieć połączeń
+              </div>
+              <div style={{ fontSize: '0.83rem', maxWidth: 420, margin: '0 auto', lineHeight: 1.6 }}>
+                Graf używa symulacji sił fizycznych — huby o wysokiej centralności
+                naturalnie skupiają się w centrum sieci.
+              </div>
+            </div>
           )}
         </>
       )}
