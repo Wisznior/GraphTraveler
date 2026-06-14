@@ -227,6 +227,43 @@ function Timeline({ variant }) {
                     = {(stop.cost_per_day * nights).toFixed(0)} EUR pobyt
                   </span>
                 </div>
+
+                {(stop.top_hotels?.length > 0 || stop.top_pois?.length > 0) && (
+                  <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginTop: 10,
+                                paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                    {stop.top_hotels?.length > 0 && (
+                      <div style={{ flex: '1 1 180px', fontSize: '0.8rem' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4,
+                                      fontSize: '0.72rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                          Hotele
+                        </div>
+                        <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-muted)' }}>
+                          {stop.top_hotels.map((h, hi) => (
+                            <li key={hi}>
+                              {h.name}{h.stars ? ` — ${h.stars}★` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {stop.top_pois?.length > 0 && (
+                      <div style={{ flex: '1 1 180px', fontSize: '0.8rem' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4,
+                                      fontSize: '0.72rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                          Atrakcje
+                        </div>
+                        <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-muted)' }}>
+                          {stop.top_pois.map((p, pi) => (
+                            <li key={pi}>
+                              {p.name} <span style={{ color: 'var(--text-faint)' }}>({p.category})</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
               </div>
             </div>
           </div>

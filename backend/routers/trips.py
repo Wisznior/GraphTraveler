@@ -12,6 +12,18 @@ class FlightInfo(BaseModel):
     arrival: str
     duration_min: int
 
+class HotelOut(BaseModel):
+    name: str
+    stars: float | None
+    lat: float
+    lon: float
+
+class POIOut(BaseModel):
+    name: str
+    category: str
+    lat: float
+    lon: float
+
 class TripStop(BaseModel):
     day_from: int
     day_to: int
@@ -25,6 +37,8 @@ class TripStop(BaseModel):
     cost_per_day: float
     recommended_days: int
     flight_in: FlightInfo
+    top_hotels: list[HotelOut] = []
+    top_pois: list[POIOut] = []
 
 class TripVariant(BaseModel):
     variant: str        # "economy" | "balanced" | "premium"
@@ -137,6 +151,19 @@ ORDER BY price ASC
 LIMIT 1
 """
 
+CYPHER_TOP_HOTELS = """
+MATCH (c:City {name: $city})-[:HAS_HOTEL]->(h:Hotel)
+RETURN h.name AS name, h.stars AS stars, h.lat AS lat, h.lon AS lon
+ORDER BY h.stars DESC LIMIT 3
+"""
+
+CYPHER_TOP_POIS = """
+MATCH (c:City {name: $city})-[:HAS_POI]->(p:POI)
+RETURN p.name AS name, p.category AS category, p.lat AS lat, p.lon AS lon
+ORDER BY p.sitelinks DESC
+LIMIT 3
+"""
+
 def find_return_flight(svc: Neo4jService, src: str, dst: str) -> dict | None:
     rows = svc.query(CYPHER_RETURN_DIRECT, {"src": src, "dst": dst})
     if rows:
@@ -147,6 +174,19 @@ def find_return_flight(svc: Neo4jService, src: str, dst: str) -> dict | None:
     rows = svc.query(CYPHER_RETURN_CONNECTING_RELAXED, {"src": src, "dst": dst})
     return rows[0] if rows else None
 
+def fetch_top_hotels_and_pois(svc: Neo4jService, city: str) -> tuple[list[HotelOut], list[POIOut]]:
+    hotel_rows = svc.query(CYPHER_TOP_HOTELS, {"city": city})
+    poi_rows = svc.query(CYPHER_TOP_POIS, {"city": city})
+
+    hotels = [
+        HotelOut(name=r["name"], stars=r.get("stars"), lat=r["lat"], lon=r["lon"])
+        for r in hotel_rows
+    ]
+    pois = [
+        POIOut(name=r["name"], category=r["category"], lat=r["lat"], lon=r["lon"])
+        for r in poi_rows
+    ]
+    return hotels, pois
 
 def score_candidate(c: dict, origin_country: str, visited_countries: set, weight: float) -> float:
     total_cost = c["cost_per_day"] * c["recommended_days"] + c["flight_price"]
@@ -249,6 +289,9 @@ def run_greedy(
 
         if total_cost > budget_remaining:
             break
+
+        top_hotels, top_pois = fetch_top_hotels_and_pois(svc, best["city"])
+
         if days_remaining - days_here < 2:
             stops.append(TripStop(
                 day_from = current_day,
@@ -270,6 +313,8 @@ def run_greedy(
                     arrival = best["arrival"],
                     duration_min = best["duration_min"],
                 ),
+                top_hotels = top_hotels,
+                top_pois = top_pois,
             ))
             visited_countries.add(best["country"])
             visited_cities.add(best["city"])
@@ -299,6 +344,8 @@ def run_greedy(
                 arrival = best["arrival"],
                 duration_min = best["duration_min"],
             ),
+            top_hotels = top_hotels,
+            top_pois = top_pois,
         ))
 
         visited_countries.add(best["country"])
