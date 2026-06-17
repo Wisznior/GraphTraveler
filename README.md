@@ -27,6 +27,7 @@ Projekt zaliczeniowy — Grafowe Bazy Danych.
 ### 3. Trip Planner
 - Algorytm zachłanny (Greedy Orienteering) — maksymalizuje atrakcyjność przy ograniczeniu budżetu i czasu
 - 3 warianty: Ekonomiczny / Zrównoważony / Premium
+- Dla każdego przystanku: top 3 hotele (OpenStreetMap) i top 3 atrakcje (Wikidata, ranking po sitelinks)
 
 ## Uruchomienie
 
@@ -53,10 +54,15 @@ docker compose exec api python scripts/import_airports.py
 docker compose exec api python scripts/seed_citties.py
 
 # 6. Utwórz relacje Airport→City (wymagane dla Trip Plannera)
-docker compose exec neo4j cypher-shell \
-  -u neo4j -p graphtraveler123 \
-  "MATCH (a:Airport), (c:City) WHERE a.city_name = c.name MERGE (a)-[:SERVES]->(c)"
+docker compose exec neo4j cypher-shell -u neo4j -p graphtraveler123 "MATCH (a:Airport), (c:City) WHERE a.city_name = c.name MERGE (a)-[:SERVES]->(c)"
+
+# 7. Pobierz hotele (OpenStreetMap) i atrakcje (Wikidata) dla miast
+docker compose exec api python scripts/seed_hotels_pois.py
 ```
+
+> **Uwaga:** krok 7 wykonuje ~2 zapytania HTTP na miasto i może trwać kilkadziesiąt minut.
+> Skrypt jest idempotentny — można go przerywać i wznawiać, pomija miasta już przetworzone.
+> W razie błędów sieciowych wystarczy uruchomić go ponownie.
 
 ### Kolejne uruchomienia (dane są zachowane w wolumenie)
 
@@ -69,60 +75,77 @@ docker compose up
 ```bash
 docker compose down -v   # usuwa wolumen Neo4j — dane zostaną utracone
 docker compose up --build
-# powtórz kroki 4-6
+# powtórz kroki 4-7
 ```
 
 ## Adresy
 
-| Serwis       | URL                          |
-|--------------|------------------------------|
-| Frontend     | http://localhost:3000        |
-| API          | http://localhost:8000        |
-| Swagger UI   | http://localhost:8000/docs   |
-| Neo4j Browser| http://localhost:7474        |
+| Serwis        | URL                        |
+|---------------|----------------------------|
+| Frontend      | http://localhost:3000      |
+| API           | http://localhost:8000      |
+| Swagger UI    | http://localhost:8000/docs |
+| Neo4j Browser | http://localhost:7474      |
 
 ## Struktura projektu
+
 ```
 graphtraveler/
 ├── docker-compose.yml
 ├── .env.example
 ├── neo4j/
 │   └── init/
-│       └── 01_constraints.cypher    # indeksy i ograniczenia
+│       └── 01_constraints.cypher     # indeksy i ograniczenia
 ├── backend/
-│   ├── main.py                      # FastAPI app
+│   ├── main.py                       # FastAPI app
 │   ├── requirements.txt
 │   ├── routers/
-│   │   ├── routes.py                # /api/routes — lotniska, loty
-│   │   ├── analytics.py             # /api/analytics — GDS (Betweenness, Dijkstra)
-│   │   └── trips.py                 # /api/trips — Trip Planner
+│   │   ├── routes.py                 # /api/routes — lotniska, loty
+│   │   ├── analytics.py              # /api/analytics — GDS (Betweenness, Dijkstra)
+│   │   └── trips.py                  # /api/trips — Trip Planner
 │   ├── services/
-│   │   └── neo4j_service.py         # Neo4j driver wrapper
+│   │   └── neo4j_service.py          # Neo4j driver wrapper
 │   └── scripts/
-│       ├── import_airports.py       # ETL: OpenFlights → Neo4j
-│       └── seed_citties.py          # Seed: appeal i koszty miast
+│       ├── import_airports.py        # ETL: OpenFlights → Neo4j
+│       ├── seed_citties.py           # Seed: appeal i koszty miast
+│       └── seed_hotels_pois.py       # ETL: hotele (OSM) i atrakcje (Wikidata) → Neo4j
 └── frontend/
-└── src/
-├── components/
-│   └── MapView.jsx           # React-Leaflet
-├── pages/
-│   ├── FlightsPage.jsx       # Połączenia lotnicze
-│   ├── AnalyticsPage.jsx     # Analiza sieci
-│   └── TripPlannerPage.jsx   # Trip Planner
-└── api/
-└── client.js            # fetch wrappers
+    └── src/
+        ├── components/
+        │   └── MapView.jsx           # React-Leaflet
+        ├── pages/
+        │   ├── FlightsPage.jsx       # Połączenia lotnicze
+        │   ├── AnalyticsPage.jsx     # Analiza sieci
+        │   └── TripPlannerPage.jsx   # Trip Planner
+        └── api/
+            └── client.js             # fetch wrappers
 ```
 
 ## Model danych (Graf Neo4j)
 
 ### Węzły
-| Label   | Właściwości kluczowe                                      |
-|---------|-----------------------------------------------------------|
-| Airport | code (IATA), name, city_name, country, lat, lon           |
+
+| Label   | Właściwości kluczowe                                            |
+|---------|-----------------------------------------------------------------|
+| Airport | code (IATA), name, city_name, country, lat, lon                 |
 | City    | name, country, lat, lon, appeal, cost_per_day, recommended_days |
+| Hotel   | name, stars, lat, lon, city                                     |
+| POI     | name, category, lat, lon, city, sitelinks                       |
 
 ### Relacje
-| Relacja    | Skąd → Dokąd      | Właściwości                              |
-|------------|-------------------|------------------------------------------|
+
+| Relacja    | Skąd → Dokąd      | Właściwości                                      |
+|------------|-------------------|--------------------------------------------------|
 | FLIGHT_TO  | Airport → Airport | price, dist_km, duration_min, departure, arrival |
-| SERVES     | Airport → City    | (brak)                                   |
+| SERVES     | Airport → City    | —                                                |
+| HAS_HOTEL  | City → Hotel      | —                                                |
+| HAS_POI    | City → POI        | —                                                |
+
+## Źródła danych
+
+| Dane     | Źródło                         | Metoda pobrania                             |
+|----------|--------------------------------|---------------------------------------------|
+| Lotniska | OpenFlights (airports.dat)     | HTTP, filtr 22 kraje europejskie            |
+| Loty     | OpenFlights (routes.dat)       | HTTP, model cenowy wg dystansu/hubu         |
+| Hotele   | OpenStreetMap via Overpass API | Zapytanie `tourism=hotel` w radiusie 15 km  |
+| Atrakcje | Wikidata SPARQL                | Zapytanie GeoSPARQL, ranking po sitelinks (min. 15) |
